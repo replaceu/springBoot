@@ -44,67 +44,66 @@ import org.springframework.util.StringUtils;
 class OnClassCondition extends FilteringSpringBootCondition {
 
 	@Override
-	protected final ConditionOutcome[] getOutcomes(String[] autoConfigurationClasses,
-			AutoConfigurationMetadata autoConfigurationMetadata) {
+	protected final ConditionOutcome[] getOutcomes(String[] autoConfigurationClasses, AutoConfigurationMetadata autoConfigurationMetadata) {
 		// Split the work and perform half in a background thread. Using a single
 		// additional thread seems to offer the best performance. More threads make
 		// things worse
+
+		//这里经过测试用两个线程去跑的话性能是最好的，大于两个线程性能反而变差
 		int split = autoConfigurationClasses.length / 2;
-		OutcomesResolver firstHalfResolver = createOutcomesResolver(
-				autoConfigurationClasses, 0, split, autoConfigurationMetadata);
-		OutcomesResolver secondHalfResolver = new StandardOutcomesResolver(
-				autoConfigurationClasses, split, autoConfigurationClasses.length,
-				autoConfigurationMetadata, getBeanClassLoader());
+		//1.开启一个新线程去扫描判断已经加载的一半自动配置类
+		OutcomesResolver firstHalfResolver = createOutcomesResolver(autoConfigurationClasses, 0, split, autoConfigurationMetadata);
+		//2.这里用主线程去扫描判断已经加载的一半自动配置类
+		OutcomesResolver secondHalfResolver = new StandardOutcomesResolver(autoConfigurationClasses, split, autoConfigurationClasses.length, autoConfigurationMetadata, getBeanClassLoader());
+		//3.先让主线程去执行解析一半自动配置类是否匹配条件
 		ConditionOutcome[] secondHalf = secondHalfResolver.resolveOutcomes();
+		//4.这里用新开启的线程取解析另一半自动配置类是否匹配
+		// 注意为了防止主线程执行过快结束，resolveOutcomes方法里面调用了thread.join()来
+		// 让主线程等待新线程执行结束，因为后面要合并两个线程的解析结果
 		ConditionOutcome[] firstHalf = firstHalfResolver.resolveOutcomes();
+		//新建一个ConditionOutcome数组来存储自动配置类的筛选结果
 		ConditionOutcome[] outcomes = new ConditionOutcome[autoConfigurationClasses.length];
+		//将前面两个线程的筛选结果分别拷贝进outcomes数组
 		System.arraycopy(firstHalf, 0, outcomes, 0, firstHalf.length);
 		System.arraycopy(secondHalf, 0, outcomes, split, secondHalf.length);
 		return outcomes;
 	}
 
-	private OutcomesResolver createOutcomesResolver(String[] autoConfigurationClasses,
-			int start, int end, AutoConfigurationMetadata autoConfigurationMetadata) {
-		OutcomesResolver outcomesResolver = new StandardOutcomesResolver(
-				autoConfigurationClasses, start, end, autoConfigurationMetadata,
-				getBeanClassLoader());
+	private OutcomesResolver createOutcomesResolver(String[] autoConfigurationClasses, int start, int end, AutoConfigurationMetadata autoConfigurationMetadata) {
+		//新建一个StandardOutcomesResolver对象
+		OutcomesResolver outcomesResolver = new StandardOutcomesResolver(autoConfigurationClasses, start, end, autoConfigurationMetadata, getBeanClassLoader());
 		try {
+			//new一个ThreadedOutcomesResolver对象，并将StandardOutcomesResolver类型的outcomesResolver对象作为构造器参数传入
 			return new ThreadedOutcomesResolver(outcomesResolver);
-		}
-		catch (AccessControlException ex) {
+		} catch (AccessControlException ex) {
 			return outcomesResolver;
 		}
 	}
 
 	@Override
-	public ConditionOutcome getMatchOutcome(ConditionContext context,
-			AnnotatedTypeMetadata metadata) {
+	public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata metadata) {
 		ClassLoader classLoader = context.getClassLoader();
 		ConditionMessage matchMessage = ConditionMessage.empty();
 		List<String> onClasses = getCandidates(metadata, ConditionalOnClass.class);
 		if (onClasses != null) {
-			List<String> missing = filter(onClasses, ClassNameFilter.MISSING,
-					classLoader);
+			List<String> missing = filter(onClasses, ClassNameFilter.MISSING, classLoader);
 			if (!missing.isEmpty()) {
-				return ConditionOutcome
-						.noMatch(ConditionMessage.forCondition(ConditionalOnClass.class)
-								.didNotFind("required class", "required classes")
-								.items(Style.QUOTE, missing));
+				return ConditionOutcome.noMatch(ConditionMessage.forCondition(ConditionalOnClass.class)
+						.didNotFind("required class", "required classes")
+						.items(Style.QUOTE, missing));
 			}
 			matchMessage = matchMessage.andCondition(ConditionalOnClass.class)
 					.found("required class", "required classes").items(Style.QUOTE,
 							filter(onClasses, ClassNameFilter.PRESENT, classLoader));
 		}
-		List<String> onMissingClasses = getCandidates(metadata,
-				ConditionalOnMissingClass.class);
+		List<String> onMissingClasses = getCandidates(metadata, ConditionalOnMissingClass.class);
 		if (onMissingClasses != null) {
 			List<String> present = filter(onMissingClasses, ClassNameFilter.PRESENT,
 					classLoader);
 			if (!present.isEmpty()) {
-				return ConditionOutcome.noMatch(
-						ConditionMessage.forCondition(ConditionalOnMissingClass.class)
-								.found("unwanted class", "unwanted classes")
-								.items(Style.QUOTE, present));
+				return ConditionOutcome.noMatch(ConditionMessage.forCondition(ConditionalOnMissingClass.class)
+						.found("unwanted class", "unwanted classes")
+						.items(Style.QUOTE, present));
 			}
 			matchMessage = matchMessage.andCondition(ConditionalOnMissingClass.class)
 					.didNotFind("unwanted class", "unwanted classes")
@@ -114,10 +113,8 @@ class OnClassCondition extends FilteringSpringBootCondition {
 		return ConditionOutcome.match(matchMessage);
 	}
 
-	private List<String> getCandidates(AnnotatedTypeMetadata metadata,
-			Class<?> annotationType) {
-		MultiValueMap<String, Object> attributes = metadata
-				.getAllAnnotationAttributes(annotationType.getName(), true);
+	private List<String> getCandidates(AnnotatedTypeMetadata metadata, Class<?> annotationType) {
+		MultiValueMap<String, Object> attributes = metadata.getAllAnnotationAttributes(annotationType.getName(), true);
 		if (attributes == null) {
 			return null;
 		}
@@ -146,10 +143,10 @@ class OnClassCondition extends FilteringSpringBootCondition {
 		private final Thread thread;
 
 		private volatile ConditionOutcome[] outcomes;
-
+		// 这里开启一个新的线程，这个线程其实还是利用StandardOutcomesResolver的resolveOutcomes方法
+		// 对自动配置类进行解析判断是否匹配
 		private ThreadedOutcomesResolver(OutcomesResolver outcomesResolver) {
-			this.thread = new Thread(
-					() -> this.outcomes = outcomesResolver.resolveOutcomes());
+			this.thread = new Thread(() -> this.outcomes = outcomesResolver.resolveOutcomes());
 			this.thread.start();
 		}
 
@@ -157,8 +154,7 @@ class OnClassCondition extends FilteringSpringBootCondition {
 		public ConditionOutcome[] resolveOutcomes() {
 			try {
 				this.thread.join();
-			}
-			catch (InterruptedException ex) {
+			} catch (InterruptedException ex) {
 				Thread.currentThread().interrupt();
 			}
 			return this.outcomes;
@@ -178,9 +174,7 @@ class OnClassCondition extends FilteringSpringBootCondition {
 
 		private final ClassLoader beanClassLoader;
 
-		private StandardOutcomesResolver(String[] autoConfigurationClasses, int start,
-				int end, AutoConfigurationMetadata autoConfigurationMetadata,
-				ClassLoader beanClassLoader) {
+		private StandardOutcomesResolver(String[] autoConfigurationClasses, int start, int end, AutoConfigurationMetadata autoConfigurationMetadata, ClassLoader beanClassLoader) {
 			this.autoConfigurationClasses = autoConfigurationClasses;
 			this.start = start;
 			this.end = end;
@@ -195,13 +189,12 @@ class OnClassCondition extends FilteringSpringBootCondition {
 		}
 
 		private ConditionOutcome[] getOutcomes(String[] autoConfigurationClasses,
-				int start, int end, AutoConfigurationMetadata autoConfigurationMetadata) {
+											   int start, int end, AutoConfigurationMetadata autoConfigurationMetadata) {
 			ConditionOutcome[] outcomes = new ConditionOutcome[end - start];
 			for (int i = start; i < end; i++) {
 				String autoConfigurationClass = autoConfigurationClasses[i];
 				if (autoConfigurationClass != null) {
-					String candidates = autoConfigurationMetadata
-							.get(autoConfigurationClass, "ConditionalOnClass");
+					String candidates = autoConfigurationMetadata.get(autoConfigurationClass, "ConditionalOnClass");
 					if (candidates != null) {
 						outcomes[i - start] = getOutcome(candidates);
 					}
@@ -213,26 +206,21 @@ class OnClassCondition extends FilteringSpringBootCondition {
 		private ConditionOutcome getOutcome(String candidates) {
 			try {
 				if (!candidates.contains(",")) {
-					return getOutcome(candidates, ClassNameFilter.MISSING,
-							this.beanClassLoader);
+					return getOutcome(candidates, ClassNameFilter.MISSING, this.beanClassLoader);
 				}
-				for (String candidate : StringUtils
-						.commaDelimitedListToStringArray(candidates)) {
-					ConditionOutcome outcome = getOutcome(candidate,
-							ClassNameFilter.MISSING, this.beanClassLoader);
+				for (String candidate : StringUtils.commaDelimitedListToStringArray(candidates)) {
+					ConditionOutcome outcome = getOutcome(candidate, ClassNameFilter.MISSING, this.beanClassLoader);
 					if (outcome != null) {
 						return outcome;
 					}
 				}
-			}
-			catch (Exception ex) {
+			} catch (Exception ex) {
 				// We'll get another chance later
 			}
 			return null;
 		}
 
-		private ConditionOutcome getOutcome(String className,
-				ClassNameFilter classNameFilter, ClassLoader classLoader) {
+		private ConditionOutcome getOutcome(String className, ClassNameFilter classNameFilter, ClassLoader classLoader) {
 			if (classNameFilter.matches(className, classLoader)) {
 				return ConditionOutcome.noMatch(ConditionMessage
 						.forCondition(ConditionalOnClass.class)

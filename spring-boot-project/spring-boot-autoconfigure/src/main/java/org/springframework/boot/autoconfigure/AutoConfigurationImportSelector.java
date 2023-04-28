@@ -89,9 +89,13 @@ public class AutoConfigurationImportSelector implements DeferredImportSelector, 
 
 	@Override
 	public String[] selectImports(AnnotationMetadata annotationMetadata) {
+		//检查自动配置功能是否开启，默认开启
 		if (!isEnabled(annotationMetadata)) { return NO_IMPORTS; }
+		//加戴自动配置的元信息，配置文件为类路径中 META-INF 目录下的spring-autoconfigure-metadata.properties 文件
 		AutoConfigurationMetadata autoConfigurationMetadata = AutoConfigurationMetadataLoader.loadMetadata(this.beanClassLoader);
+		//封装将被引入的自动配置信息
 		AutoConfigurationEntry autoConfigurationEntry = getAutoConfigurationEntry(autoConfigurationMetadata, annotationMetadata);
+		//返回符合条件的配置类的全限定名数组
 		return StringUtils.toStringArray(autoConfigurationEntry.getConfigurations());
 	}
 
@@ -106,18 +110,24 @@ public class AutoConfigurationImportSelector implements DeferredImportSelector, 
 	protected AutoConfigurationEntry getAutoConfigurationEntry(AutoConfigurationMetadata autoConfigurationMetadata, AnnotationMetadata annotationMetadata) {
 		//这里,我们就能看到设置spring.boot.enableAutoconfiguration属性去禁止导入系统配置的bean的定义
 		if (!isEnabled(annotationMetadata)) { return EMPTY_ENTRY; }
+		//获取注解属性
 		AnnotationAttributes attributes = getAttributes(annotationMetadata);
 		/**todo：在下面这行中，就能看到通过ClassLoader去加载META-INF/spring.factories文件，读取内容。放置到cache中
 		 *  在当前这里,会去获取key=org.springframework.boot.autoconfigure.EnableAutoConfiguration的所有属性配置*/
 		List<String> configurations = getCandidateConfigurations(annotationMetadata, attributes);
+		//去除重复配置
 		configurations = removeDuplicates(configurations);
+		//获得炷解中被 excLude.或excLudeName所排除的类的集合
 		Set<String> exclusions = getExclusions(annotationMetadata, attributes);
+		//检查被排除类是否可实例化，是否被自动注册配置所使用，不符合条件则抛出异常
 		checkExcludedClasses(configurations, exclusions);
+		//从上面的候选配置中移除所有拍排除的配置类
 		configurations.removeAll(exclusions);
-		//在这里获取配置过滤类并创建对象，对上面的configurations进行过滤
-		//这里的配置过滤类也是从cache中获取,key=org.springframework.boot.autoconfigure.AutoConfigurationImportFilter
+		//通过ConfigurationClassFilter筛选配置
 		configurations = filter(configurations, autoConfigurationMetadata);
+		//将筛选完成的配置类和排查的配置类构建为事件类，并传入监听器。监听器的配置在spring.factories文件中，通过 AutoConfigurationImportListener 指定
 		fireAutoConfigurationImportEvents(configurations, exclusions);
+		//返回排除后的自动配置Entry
 		return new AutoConfigurationEntry(configurations, exclusions);
 	}
 
@@ -181,13 +191,21 @@ public class AutoConfigurationImportSelector implements DeferredImportSelector, 
 		return EnableAutoConfiguration.class;
 	}
 
+	/**
+	 * checkExcludedClasses 方 法用来确保被排除的类存在于当前的 ClassLoader中，
+	 * 并且包含在spring.factories注册的集合中。如果不满足以上条件，调用handleInvalidExcludes方法抛出异常
+	 * @param configurations
+	 * @param exclusions
+	 */
 	private void checkExcludedClasses(List<String> configurations, Set<String> exclusions) {
 		List<String> invalidExcludes = new ArrayList<>(exclusions.size());
+		////遍历并判断是否存在对应的配置类
 		for (String exclusion : exclusions) {
 			if (ClassUtils.isPresent(exclusion, getClass().getClassLoader()) && !configurations.contains(exclusion)) {
 				invalidExcludes.add(exclusion);
 			}
 		}
+		//如果不为空，就进行处理
 		if (!invalidExcludes.isEmpty()) {
 			handleInvalidExcludes(invalidExcludes);
 		}
@@ -215,7 +233,11 @@ public class AutoConfigurationImportSelector implements DeferredImportSelector, 
 	 *                   attributes}
 	 * @return exclusions or an empty set
 	 */
+	//它会收集@EnableAutoConfiguration 注解中配置的exclude属性值excludeName属性值并通过方法
+	//getExcludeAutoConfigurationsProperty 获取在配置文件中key 为spring.autoconfigure.exclude 的配置值
+
 	protected Set<String> getExclusions(AnnotationMetadata metadata, AnnotationAttributes attributes) {
+		//创建 Set 集合并把待排除的内容存于集合内，LinkedHashSet 具有不可重复性
 		Set<String> excluded = new LinkedHashSet<>();
 		excluded.addAll(asList(attributes, "exclude"));
 		excluded.addAll(Arrays.asList(attributes.getStringArray("excludeName")));
@@ -275,6 +297,13 @@ public class AutoConfigurationImportSelector implements DeferredImportSelector, 
 		return Arrays.asList((value != null) ? value : new String[0]);
 	}
 
+	/**
+	 * 以上代码首先通过 SpringFactoriesLoader 类提供的 loadFactories 方法将 spring.factories中配置的接口
+	 * AutoConfigurationImportListener 的实现类加载出来。然后，将筛选出的自动配置类集合和被排除的自动配置类集合封装成
+	 * AutoConfigurationImportEvent事件对象，并传入该事件对象通过监听器提供的 onAutoConfigurationImportEvent方法，最后进行事件广播
+	 * @param configurations
+	 * @param exclusions
+	 */
 	private void fireAutoConfigurationImportEvents(List<String> configurations, Set<String> exclusions) {
 		List<AutoConfigurationImportListener> listeners = getAutoConfigurationImportListeners();
 		if (!listeners.isEmpty()) {
