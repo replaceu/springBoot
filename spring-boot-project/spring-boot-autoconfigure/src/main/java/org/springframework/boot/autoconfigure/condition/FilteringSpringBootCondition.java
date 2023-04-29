@@ -43,7 +43,7 @@ abstract class FilteringSpringBootCondition extends SpringBootCondition implemen
 	private ClassLoader beanClassLoader;
 
 	/**
-	 * match 方法接收两个参数，一个是待过滤的自动配置类数组，另一个是自动配置的元数据信息。
+	 * match方法接收两个参数，一个是待过滤的自动配置类数组，另一个是自动配置的元数据信息。
 	 * match返回的结果为匹配过滤后的结果布尔数组，数组的大小与String[]autoConfigurationClasses-致，如果需排除，设置对应值为 false
 	 *
 	 * @param autoConfigurationClasses  the auto-configuration classes being considered.
@@ -63,8 +63,7 @@ abstract class FilteringSpringBootCondition extends SpringBootCondition implemen
 			if (!match[i] && outcomes[i] != null) {
 				logOutcome(autoConfigurationClasses[i], outcomes[i]);
 				if (report != null) {
-					report.recordConditionEvaluation(autoConfigurationClasses[i], this,
-							outcomes[i]);
+					report.recordConditionEvaluation(autoConfigurationClasses[i], this, outcomes[i]);
 				}
 			}
 		}
@@ -91,13 +90,13 @@ abstract class FilteringSpringBootCondition extends SpringBootCondition implemen
 		this.beanClassLoader = classLoader;
 	}
 
-	protected List<String> filter(Collection<String> classNames,
-								  ClassNameFilter classNameFilter, ClassLoader classLoader) {
+	protected List<String> filter(Collection<String> classNames, ClassNameFilter classNameFilter, ClassLoader classLoader) {
 		if (CollectionUtils.isEmpty(classNames)) {
 			return Collections.emptyList();
 		}
 		List<String> matches = new ArrayList<>(classNames.size());
 		for (String candidate : classNames) {
+			//最终是调用ClassNameFilter的matches方法来判断@ConditionalOnClass指定的类存不存在类路径中,若不存在的话，则返回不匹配
 			if (classNameFilter.matches(candidate, classLoader)) {
 				matches.add(candidate);
 			}
@@ -106,7 +105,7 @@ abstract class FilteringSpringBootCondition extends SpringBootCondition implemen
 	}
 
 	protected enum ClassNameFilter {
-
+		//这里表示指定的类存在于类路径中，则返回true
 		PRESENT {
 			@Override
 			public boolean matches(String className, ClassLoader classLoader) {
@@ -114,7 +113,7 @@ abstract class FilteringSpringBootCondition extends SpringBootCondition implemen
 			}
 
 		},
-
+		//这里表示指定的类不存在于类路径中，则返回true
 		MISSING {
 			@Override
 			public boolean matches(String className, ClassLoader classLoader) {
@@ -122,23 +121,25 @@ abstract class FilteringSpringBootCondition extends SpringBootCondition implemen
 			}
 
 		};
-
+		//这又是一个抽象方法，分别被PRESENT和MISSING枚举类实现
 		public abstract boolean matches(String className, ClassLoader classLoader);
 
+		//检查指定的类是否存在于类路径中
 		public static boolean isPresent(String className, ClassLoader classLoader) {
 			if (classLoader == null) {
 				classLoader = ClassUtils.getDefaultClassLoader();
 			}
 			try {
+				//利用类加载器去加载相应类，若没有抛出异常则说明类路径中存在该类，此时返回true
 				forName(className, classLoader);
 				return true;
 			} catch (Throwable ex) {
+				//若不存在于类路径中，此时抛出的异常将catch住，返回false
 				return false;
 			}
 		}
-
-		private static Class<?> forName(String className, ClassLoader classLoader)
-				throws ClassNotFoundException {
+		//利用类加载器去加载指定的类
+		private static Class<?> forName(String className, ClassLoader classLoader) throws ClassNotFoundException {
 			if (classLoader != null) {
 				return classLoader.loadClass(className);
 			}
