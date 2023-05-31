@@ -88,11 +88,9 @@ import org.springframework.web.context.support.WebApplicationContextUtils;
  * @see XmlServletWebServerApplicationContext
  * @see ServletWebServerFactory
  */
-public class ServletWebServerApplicationContext extends GenericWebApplicationContext
-		implements ConfigurableWebServerApplicationContext {
+public class ServletWebServerApplicationContext extends GenericWebApplicationContext implements ConfigurableWebServerApplicationContext {
 
-	private static final Log logger = LogFactory
-			.getLog(ServletWebServerApplicationContext.class);
+	private static final Log logger = LogFactory.getLog(ServletWebServerApplicationContext.class);
 
 	/**
 	 * Constant value for the DispatcherServlet bean name. A Servlet bean with this name
@@ -129,8 +127,9 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 	 */
 	@Override
 	protected void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) {
-		beanFactory.addBeanPostProcessor(
-				new WebApplicationContextServletContextAwareProcessor(this));
+		// 添加 BeanPostProcessor 后置处理器：WebApplicationContextServletContextAwareProcessor，
+		// 该后置处理器主要是从ConfigurableWebApplicationContext上下文中获取 ServletContext和ServletConfig对象
+		beanFactory.addBeanPostProcessor(new WebApplicationContextServletContextAwareProcessor(this));
 		beanFactory.ignoreDependencyInterface(ServletContextAware.class);
 	}
 
@@ -138,8 +137,7 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 	public final void refresh() throws BeansException, IllegalStateException {
 		try {
 			super.refresh();
-		}
-		catch (RuntimeException ex) {
+		} catch (RuntimeException ex) {
 			stopAndReleaseWebServer();
 			throw ex;
 		}
@@ -150,8 +148,7 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 		super.onRefresh();
 		try {
 			createWebServer();
-		}
-		catch (Throwable ex) {
+		} catch (Throwable ex) {
 			throw new ApplicationContextException("Unable to start web server", ex);
 		}
 	}
@@ -177,14 +174,11 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 		if (webServer == null && servletContext == null) {
 			ServletWebServerFactory factory = getWebServerFactory();
 			this.webServer = factory.getWebServer(getSelfInitializer());
-		}
-		else if (servletContext != null) {
+		} else if (servletContext != null) {
 			try {
 				getSelfInitializer().onStartup(servletContext);
-			}
-			catch (ServletException ex) {
-				throw new ApplicationContextException("Cannot initialize servlet context",
-						ex);
+			} catch (ServletException ex) {
+				throw new ApplicationContextException("Cannot initialize servlet context", ex);
 			}
 		}
 		initPropertySources();
@@ -198,19 +192,9 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 	 */
 	protected ServletWebServerFactory getWebServerFactory() {
 		// Use bean names so that we don't consider the hierarchy
-		String[] beanNames = getBeanFactory()
-				.getBeanNamesForType(ServletWebServerFactory.class);
-		if (beanNames.length == 0) {
-			throw new ApplicationContextException(
-					"Unable to start ServletWebServerApplicationContext due to missing "
-							+ "ServletWebServerFactory bean.");
-		}
-		if (beanNames.length > 1) {
-			throw new ApplicationContextException(
-					"Unable to start ServletWebServerApplicationContext due to multiple "
-							+ "ServletWebServerFactory beans : "
-							+ StringUtils.arrayToCommaDelimitedString(beanNames));
-		}
+		String[] beanNames = getBeanFactory().getBeanNamesForType(ServletWebServerFactory.class);
+		if (beanNames.length == 0) { throw new ApplicationContextException("Unable to start ServletWebServerApplicationContext due to missing " + "ServletWebServerFactory bean."); }
+		if (beanNames.length > 1) { throw new ApplicationContextException("Unable to start ServletWebServerApplicationContext due to multiple " + "ServletWebServerFactory beans : " + StringUtils.arrayToCommaDelimitedString(beanNames)); }
 		return getBeanFactory().getBean(beanNames[0], ServletWebServerFactory.class);
 	}
 
@@ -227,13 +211,10 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 	private void selfInitialize(ServletContext servletContext) throws ServletException {
 		prepareWebApplicationContext(servletContext);
 		ConfigurableListableBeanFactory beanFactory = getBeanFactory();
-		ExistingWebApplicationScopes existingScopes = new ExistingWebApplicationScopes(
-				beanFactory);
-		WebApplicationContextUtils.registerWebApplicationScopes(beanFactory,
-				getServletContext());
+		ExistingWebApplicationScopes existingScopes = new ExistingWebApplicationScopes(beanFactory);
+		WebApplicationContextUtils.registerWebApplicationScopes(beanFactory, getServletContext());
 		existingScopes.restore();
-		WebApplicationContextUtils.registerEnvironmentBeans(beanFactory,
-				getServletContext());
+		WebApplicationContextUtils.registerEnvironmentBeans(beanFactory, getServletContext());
 		for (ServletContextInitializer beans : getServletContextInitializerBeans()) {
 			beans.onStartup(servletContext);
 		}
@@ -258,38 +239,26 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 	 * @param servletContext the operational servlet context
 	 */
 	protected void prepareWebApplicationContext(ServletContext servletContext) {
-		Object rootContext = servletContext.getAttribute(
-				WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE);
+		Object rootContext = servletContext.getAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE);
 		if (rootContext != null) {
-			if (rootContext == this) {
-				throw new IllegalStateException(
-						"Cannot initialize context because there is already a root application context present - "
-								+ "check whether you have multiple ServletContextInitializers!");
-			}
+			if (rootContext == this) { throw new IllegalStateException("Cannot initialize context because there is already a root application context present - " + "check whether you have multiple ServletContextInitializers!"); }
 			return;
 		}
 		Log logger = LogFactory.getLog(ContextLoader.class);
 		servletContext.log("Initializing Spring embedded WebApplicationContext");
 		try {
-			servletContext.setAttribute(
-					WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE, this);
+			servletContext.setAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE, this);
 			if (logger.isDebugEnabled()) {
-				logger.debug(
-						"Published root WebApplicationContext as ServletContext attribute with name ["
-								+ WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE
-								+ "]");
+				logger.debug("Published root WebApplicationContext as ServletContext attribute with name [" + WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE + "]");
 			}
 			setServletContext(servletContext);
 			if (logger.isInfoEnabled()) {
 				long elapsedTime = System.currentTimeMillis() - getStartupDate();
-				logger.info("Root WebApplicationContext: initialization completed in "
-						+ elapsedTime + " ms");
+				logger.info("Root WebApplicationContext: initialization completed in " + elapsedTime + " ms");
 			}
-		}
-		catch (RuntimeException | Error ex) {
+		} catch (RuntimeException | Error ex) {
 			logger.error("Context initialization failed", ex);
-			servletContext.setAttribute(
-					WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE, ex);
+			servletContext.setAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE, ex);
 			throw ex;
 		}
 	}
@@ -308,8 +277,7 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 			try {
 				webServer.stop();
 				this.webServer = null;
-			}
-			catch (Exception ex) {
+			} catch (Exception ex) {
 				throw new IllegalStateException(ex);
 			}
 		}
@@ -317,9 +285,7 @@ public class ServletWebServerApplicationContext extends GenericWebApplicationCon
 
 	@Override
 	protected Resource getResourceByPath(String path) {
-		if (getServletContext() == null) {
-			return new ClassPathContextResource(path, getClassLoader());
-		}
+		if (getServletContext() == null) { return new ClassPathContextResource(path, getClassLoader()); }
 		return new ServletContextResource(getServletContext(), path);
 	}
 

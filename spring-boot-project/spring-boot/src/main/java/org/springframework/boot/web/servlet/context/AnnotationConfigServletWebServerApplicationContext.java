@@ -53,8 +53,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
  * @see ServletWebServerApplicationContext
  * @see AnnotationConfigWebApplicationContext
  */
-public class AnnotationConfigServletWebServerApplicationContext
-		extends ServletWebServerApplicationContext implements AnnotationConfigRegistry {
+public class AnnotationConfigServletWebServerApplicationContext extends ServletWebServerApplicationContext implements AnnotationConfigRegistry {
 
 	private final AnnotatedBeanDefinitionReader reader;
 
@@ -80,8 +79,7 @@ public class AnnotationConfigServletWebServerApplicationContext
 	 * {@link #register} calls and then manually {@linkplain #refresh refreshed}.
 	 * @param beanFactory the DefaultListableBeanFactory instance to use for this context
 	 */
-	public AnnotationConfigServletWebServerApplicationContext(
-			DefaultListableBeanFactory beanFactory) {
+	public AnnotationConfigServletWebServerApplicationContext(DefaultListableBeanFactory beanFactory) {
 		super(beanFactory);
 		this.reader = new AnnotatedBeanDefinitionReader(this);
 		this.scanner = new ClassPathBeanDefinitionScanner(this);
@@ -94,8 +92,7 @@ public class AnnotationConfigServletWebServerApplicationContext
 	 * @param annotatedClasses one or more annotated classes, e.g. {@code @Configuration}
 	 * classes
 	 */
-	public AnnotationConfigServletWebServerApplicationContext(
-			Class<?>... annotatedClasses) {
+	public AnnotationConfigServletWebServerApplicationContext(Class<?>... annotatedClasses) {
 		this();
 		register(annotatedClasses);
 		refresh();
@@ -143,9 +140,7 @@ public class AnnotationConfigServletWebServerApplicationContext
 	public void setBeanNameGenerator(BeanNameGenerator beanNameGenerator) {
 		this.reader.setBeanNameGenerator(beanNameGenerator);
 		this.scanner.setBeanNameGenerator(beanNameGenerator);
-		this.getBeanFactory().registerSingleton(
-				AnnotationConfigUtils.CONFIGURATION_BEAN_NAME_GENERATOR,
-				beanNameGenerator);
+		this.getBeanFactory().registerSingleton(AnnotationConfigUtils.CONFIGURATION_BEAN_NAME_GENERATOR, beanNameGenerator);
 	}
 
 	/**
@@ -176,8 +171,7 @@ public class AnnotationConfigServletWebServerApplicationContext
 	 */
 	@Override
 	public final void register(Class<?>... annotatedClasses) {
-		Assert.notEmpty(annotatedClasses,
-				"At least one annotated class must be specified");
+		Assert.notEmpty(annotatedClasses, "At least one annotated class must be specified");
 		this.annotatedClasses.addAll(Arrays.asList(annotatedClasses));
 	}
 
@@ -196,16 +190,26 @@ public class AnnotationConfigServletWebServerApplicationContext
 
 	@Override
 	protected void prepareRefresh() {
+		//清除Class的元数据缓存。底层用Map保存元数据，执行Map的clear方法
 		this.scanner.clearCache();
+		//调用父类,也就是AbstractApplicationContext的prepareRefresh方法
 		super.prepareRefresh();
 	}
 
 	@Override
 	protected void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) {
+		//先执行父类ServletWebServerApplicationContext的postProcessBeanFactory 方法
 		super.postProcessBeanFactory(beanFactory);
+		// basePackages 存储的是类路径。先判断是否为 null,不为 null则通过ClassPathBeanDefinitionScanner的scan方法
+		// 扫描该路径下符合条件的 Class，并将Class信息包装成BeanDefinition注册到容器中，
+		// 当然，这里没有指定扫描路径，所以不会进入这个 if。
+		// （BeanDefinition 概念会在后面章节详细讨论）
 		if (this.basePackages != null && this.basePackages.length > 0) {
 			this.scanner.scan(this.basePackages);
 		}
+		// annotatedClasses存储的Class集合。先判断该集合是否为空，不为空则通过
+		// AnnotatedBeanDefinitionReader 的 register 方法将 Class 信息包装成 BeanDefinition 注册到容器中，
+		// 这里同样没有设置Class集合内容，所以不会进入这个 if
 		if (!this.annotatedClasses.isEmpty()) {
 			this.reader.register(ClassUtils.toClassArray(this.annotatedClasses));
 		}
