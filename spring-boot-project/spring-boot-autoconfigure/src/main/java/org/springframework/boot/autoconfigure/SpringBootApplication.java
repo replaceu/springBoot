@@ -32,66 +32,33 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.core.annotation.AliasFor;
 
-/**
- * Indicates a {@link Configuration configuration} class that declares one or more
- * {@link Bean @Bean} methods and also triggers {@link EnableAutoConfiguration
- * auto-configuration} and {@link ComponentScan component scanning}. This is a convenience
- * annotation that is equivalent to declaring {@code @Configuration},
- * {@code @EnableAutoConfiguration} and {@code @ComponentScan}.
- *
- * @author Phillip Webb
- * @author Stephane Nicoll
- * @since 1.2.0
- */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 @Inherited
-@SpringBootConfiguration
-@EnableAutoConfiguration
-@ComponentScan(excludeFilters = {
-		@Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
-		@Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class)})
-public @interface SpringBootApplication {
 
-	/**
-	 * Exclude specific auto-configuration classes such that they will never be applied.
-	 *
-	 * @return the classes to exclude
-	 */
+//里面标注了@Configuration注解，表明这是一个配置类，功能与@Configuration无异
+@SpringBootConfiguration
+
+//实现自动装配的核心注解，是用来激活自动装配的，其中默认路径扫描以及组件装配、排除等都通过它来实现
+@EnableAutoConfiguration
+
+//扫描被@Component标注的类，只不过这里是用来过滤Bean的，指定哪些不进行扫描，而且用的是自定义规则
+@ComponentScan(excludeFilters = { @Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class), @Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class) })
+public @interface SpringBootApplication {
+	//根据class来排除，排除指定的类加入spring容器，传入的类型是class类型。且继承自 @EnableAutoConfiguration 中的属性
 	@AliasFor(annotation = EnableAutoConfiguration.class)
 	Class<?>[] exclude() default {};
 
-	/**
-	 * Exclude specific auto-configuration class names such that they will never be
-	 * applied.
-	 *
-	 * @return the class names to exclude
-	 * @since 1.3.0
-	 */
+	//根据class name来排除，排除特定的类加入spring容器，参数类型是class的全类名字符串数组。同样继承自 @EnableAutoConfiguration
 	@AliasFor(annotation = EnableAutoConfiguration.class)
 	String[] excludeName() default {};
 
-	/**
-	 * Base packages to scan for annotated components. Use {@link #scanBasePackageClasses}
-	 * for a type-safe alternative to String-based package names.
-	 *
-	 * @return base packages to scan
-	 * @since 1.3.0
-	 */
+	//可以指定多个包名进行扫描。继承自 @ComponentScan
 	@AliasFor(annotation = ComponentScan.class, attribute = "basePackages")
 	String[] scanBasePackages() default {};
 
-	/**
-	 * Type-safe alternative to {@link #scanBasePackages} for specifying the packages to
-	 * scan for annotated components. The package of each class specified will be scanned.
-	 * <p>
-	 * Consider creating a special no-op marker class or interface in each package that
-	 * serves no purpose other than being referenced by this attribute.
-	 *
-	 * @return base packages to scan
-	 * @since 1.3.0
-	 */
+	//可以指定多个类或接口的class，然后扫描 class 所在包下的所有组件。同样继承自 @ComponentScan
 	@AliasFor(annotation = ComponentScan.class, attribute = "basePackageClasses")
 	Class<?>[] scanBasePackageClasses() default {};
 
