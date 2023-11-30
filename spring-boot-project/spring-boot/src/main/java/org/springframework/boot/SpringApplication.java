@@ -159,8 +159,7 @@ import org.springframework.web.context.support.StandardServletEnvironment;
 public class SpringApplication {
 
 	/**
-	 * The class name of application context that will be used by default for non-web
-	 * environments.
+	 * The class name of application context that will be used by default for non-web environments.
 	 */
 	public static final String DEFAULT_CONTEXT_CLASS = "org.springframework.context." + "annotation.AnnotationConfigApplicationContext";
 
@@ -325,7 +324,7 @@ public class SpringApplication {
 			exceptionReporters = getSpringFactoriesInstances(SpringBootExceptionReporter.class, new Class[]{ConfigurableApplicationContext.class}, context);
 			// 9.调用各种初始化器的initialize方法，初始化容器
 			prepareContext(context, environment, listeners, applicationArguments, printedBanner);
-			//重点 10.刷新容器，准备Bean工厂，调用一个BeanDefinition和BeanFactory的后处理器，初始化各种Bean，初始化tomcat
+			//todo：重点 10.刷新容器，准备Bean工厂，调用一个BeanDefinition和BeanFactory的后处理器，初始化各种Bean，初始化tomcat
 			refreshContext(context);
 			// 11.执行初始化的后置逻辑，默认为空
 			afterRefresh(context, applicationArguments);
